@@ -28,3 +28,12 @@ pip install bitsandbytes peft trl datasets
 ```sh
 uvicorn main:app --host 127.0.0.1 --port 8000
 ```
+
+The API endpoint sample
+```sh
+ http://127.0.0.1:8000/command?query=highlight me the front wheel from left&obj=front_door,rear_door,engine, wheel_front_left, wheel_front_right
+ ```
+expected response:
+```sh
+{"action":"highlight","object":"wheel_front_left"}
+```
