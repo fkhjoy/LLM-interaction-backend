@@ -17,10 +17,11 @@ def parse_command(user_query, detected_object):
         Allowed actions:
         focus
         highlight
+        highlight_and_navigate
         move_camera
         inspect
 
-        Return ONLY JSON.
+        Return ONLY JSON with action, obj fields.
 
         User command: {user_query}
         Detected object: {detected_object}
