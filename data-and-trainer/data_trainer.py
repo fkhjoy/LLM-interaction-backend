@@ -24,7 +24,6 @@ MAX_SEQ_LEN  = 256  # shorter now — no scene context needed
 EMBED_MODEL  = "all-MiniLM-L6-v2"
 
 # ─── Dataset Generation ───────────────────────────────────────────────────────
-# No Anthropic API — pure handcrafted + programmatic expansion
 
 ACTIONS = [
     # (function, required_args, optional_args)
@@ -48,154 +47,154 @@ ACTIONS = [
 # Seed phrases per action — model learns to map these patterns to structured output
 SEED_TEMPLATES = {
     "Transform.Translate": [
-        ("move it {dir} by {n} units",          lambda: _translate_args(*_dir_vec())),
-        ("push {n} units to the {side}",         lambda: _translate_args(*_side_vec())),
-        ("nudge {adv} along {axis}",             lambda: _translate_args(*_axis_vec())),
-        ("shift {n:.1f} on the {axis} axis",     lambda: _translate_args(*_axis_vec())),
-        ("slide it {dir} {n} meters",            lambda: _translate_args(*_dir_vec())),
-        ("offset by {n} in {dir}",               lambda: _translate_args(*_dir_vec())),
-        ("translate {n} units {dir}",            lambda: _translate_args(*_dir_vec())),
-        ("bump {adv} in the {dir} direction",    lambda: _translate_args(*_dir_vec())),
+        "move it {dir} by {n} units",
+        "push {n} units to the {side}",
+        "nudge {adv} along {axis}",
+        "shift {n} on the {axis} axis",
+        "slide it {dir} {n} meters",
+        "offset by {n} in {dir}",
+        "translate {n} units {dir}",
+        "bump {adv} in the {dir} direction",
     ],
     "Transform.Rotate": [
-        ("rotate {n} degrees around {axis}",     lambda: _rotate_args()),
-        ("spin it {n} degrees on {axis}",        lambda: _rotate_args()),
-        ("tilt {n} degrees {dir}",               lambda: _rotate_args()),
-        ("turn {n:.1f} degrees clockwise",       lambda: _rotate_args(yaw=True)),
-        ("yaw {n} degrees",                      lambda: _rotate_args(yaw=True)),
-        ("pitch down {n} degrees",               lambda: _rotate_args(pitch=True)),
-        ("roll {n} degrees",                     lambda: _rotate_args(roll=True)),
-        ("orient it {n} degrees on the y axis",  lambda: _rotate_args(yaw=True)),
+        "rotate {n} degrees around {axis}",
+        "spin it {n} degrees on {axis}",
+        "tilt {n} degrees {dir}",
+        "turn {n} degrees clockwise",
+        "yaw {n} degrees",
+        "pitch down {n} degrees",
+        "roll {n} degrees",
+        "orient it {n} degrees on the y axis",
     ],
     "Transform.Scale": [
-        ("scale it up by {n}x",                  lambda: {"scale": round(random.uniform(1.5, 4.0), 2)}),
-        ("make it {n} times bigger",             lambda: {"scale": round(random.uniform(1.2, 5.0), 1)}),
-        ("shrink it to {n:.1f}x",               lambda: {"scale": round(random.uniform(0.1, 0.9), 2)}),
-        ("double its size",                      lambda: {"scale": 2.0}),
-        ("halve the scale",                      lambda: {"scale": 0.5}),
-        ("resize uniformly to {n}",              lambda: {"scale": round(random.uniform(0.5, 3.0), 1)}),
-        ("stretch x by {n} and y by {m}",       lambda: {"x": round(random.uniform(1,3),1), "y": round(random.uniform(1,3),1), "z": 1}),
-        ("squash it on the y axis",              lambda: {"x": 1, "y": round(random.uniform(0.1, 0.5), 2), "z": 1}),
+        "scale it up by {n}x",
+        "make it {n} times bigger",
+        "shrink it to {n}x",
+        "double its size",
+        "halve the scale",
+        "resize uniformly to {n}",
+        "stretch x by {n} and y by {m}",
+        "squash it on the y axis",
     ],
     "Transform.SetPosition": [
-        ("place it at ({x}, {y}, {z})",         lambda: _pos_args()),
-        ("teleport to position {x} {y} {z}",    lambda: _pos_args()),
-        ("set world position to {x} {y} {z}",   lambda: {**_pos_args(), "space": "world"}),
-        ("move to coordinates {x} {y} {z}",     lambda: _pos_args()),
-        ("snap to origin",                       lambda: {"x": 0, "y": 0, "z": 0}),
-        ("put it at the center",                 lambda: {"x": 0, "y": 0, "z": 0}),
-        ("position at x={x} y={y} z={z}",       lambda: _pos_args()),
-        ("reposition to {x} {y} {z}",           lambda: _pos_args()),
+        "place it at ({x}, {y}, {z})",
+        "teleport to position {x} {y} {z}",
+        "set world position to {x} {y} {z}",
+        "move to coordinates {x} {y} {z}",
+        "snap to origin",
+        "put it at the center",
+        "position at x={x} y={y} z={z}",
+        "reposition to {x} {y} {z}",
     ],
     "GameObject.SetActive": [
-        ("hide it",                              lambda: {"active": False}),
-        ("show it",                              lambda: {"active": True}),
-        ("make it invisible",                    lambda: {"active": False}),
-        ("toggle it off",                        lambda: {"active": False}),
-        ("enable the object",                    lambda: {"active": True}),
-        ("disable it",                           lambda: {"active": False}),
-        ("turn it on",                           lambda: {"active": True}),
-        ("deactivate it",                        lambda: {"active": False}),
+        "hide it",
+        "show it",
+        "make it invisible",
+        "toggle it off",
+        "enable the object",
+        "disable it",
+        "turn it on",
+        "deactivate it",
     ],
     "GameObject.Destroy": [
-        ("destroy it",                           lambda: {}),
-        ("delete it",                            lambda: {}),
-        ("remove it from the scene",             lambda: {}),
-        ("destroy it after {n:.1f} seconds",     lambda: {"delay": round(random.uniform(0.5, 5.0), 1)}),
-        ("delete in {n} seconds",                lambda: {"delay": round(random.uniform(1, 10))}),
-        ("blow it up",                           lambda: {}),
-        ("get rid of it",                        lambda: {}),
-        ("despawn it",                           lambda: {}),
+        "destroy it",
+        "delete it",
+        "remove it from the scene",
+        "destroy it after {n} seconds",
+        "delete in {n} seconds",
+        "blow it up",
+        "get rid of it",
+        "despawn it",
     ],
     "Light.SetIntensity": [
-        ("set intensity to {n:.1f}",             lambda: {"intensity": round(random.uniform(0.1, 8.0), 1)}),
-        ("make it brighter",                     lambda: {"intensity": round(random.uniform(3.0, 8.0), 1)}),
-        ("dim the light",                        lambda: {"intensity": round(random.uniform(0.1, 1.0), 2)}),
-        ("set light strength to {n}",            lambda: {"intensity": round(random.uniform(0.5, 5.0), 1)}),
-        ("turn it up to {n:.1f}",               lambda: {"intensity": round(random.uniform(2.0, 8.0), 1)}),
-        ("reduce brightness to {n:.2f}",        lambda: {"intensity": round(random.uniform(0.1, 1.5), 2)}),
-        ("max out the light",                    lambda: {"intensity": 8.0}),
-        ("make it barely visible",               lambda: {"intensity": 0.1}),
+        "set intensity to {n}",
+        "make it brighter",
+        "dim the light",
+        "set light strength to {n}",
+        "turn it up to {n}",
+        "reduce brightness to {n}",
+        "max out the light",
+        "make it barely visible",
     ],
     "Light.SetColor": [
-        ("make the light red",                   lambda: {"color": "#FF0000"}),
-        ("set light to blue",                    lambda: {"color": "#0000FF"}),
-        ("change light color to {hex}",          lambda: {"color": _random_hex()}),
-        ("warm up the light",                    lambda: {"color": "#FFA040"}),
-        ("cool down the light",                  lambda: {"color": "#4080FF"}),
-        ("make it green",                        lambda: {"color": "#00FF00"}),
-        ("set light color to white",             lambda: {"color": "#FFFFFF"}),
-        ("give it a purple tint",                lambda: {"color": "#8800FF"}),
+        "make the light red",
+        "set light to blue",
+        "change light color to {hex}",
+        "warm up the light",
+        "cool down the light",
+        "make it green",
+        "set light color to white",
+        "give it a purple tint",
     ],
     "Rigidbody.AddForce": [
-        ("launch it upward",                     lambda: {"x": 0, "y": _big(), "z": 0, "mode": "Impulse"}),
-        ("push it forward",                      lambda: {"x": 0, "y": 0, "z": _big(), "mode": "Force"}),
-        ("apply {n} force upward",               lambda: {"x": 0, "y": _n(), "z": 0, "mode": "Force"}),
-        ("blast it to the right",                lambda: {"x": _big(), "y": 0, "z": 0, "mode": "Impulse"}),
-        ("apply impulse {x} {y} {z}",           lambda: {**_force_args(), "mode": "Impulse"}),
-        ("continuously push {dir}",              lambda: {**_force_dir(), "mode": "Force"}),
-        ("velocity change by {n} upward",        lambda: {"x": 0, "y": _n(), "z": 0, "mode": "VelocityChange"}),
-        ("knock it sideways",                    lambda: {"x": _big(), "y": 0, "z": 0, "mode": "Impulse"}),
+        "launch it upward",
+        "push it forward",
+        "apply {n} force upward",
+        "blast it to the right",
+        "apply impulse {x} {y} {z}",
+        "continuously push {dir}",
+        "velocity change by {n} upward",
+        "knock it sideways",
     ],
     "Rigidbody.SetVelocity": [
-        ("set velocity to {x} {y} {z}",         lambda: _vec3()),
-        ("move at {n} units per second forward", lambda: {"x": 0, "y": 0, "z": _n()}),
-        ("fling it upward at {n} speed",         lambda: {"x": 0, "y": _n(), "z": 0}),
-        ("stop it",                              lambda: {"x": 0, "y": 0, "z": 0}),
-        ("set speed to {n} on x",               lambda: {"x": _n(), "y": 0, "z": 0}),
-        ("make it drift right at {n}",           lambda: {"x": _n(), "y": 0, "z": 0}),
-        ("zero out velocity",                    lambda: {"x": 0, "y": 0, "z": 0}),
-        ("send it flying at {x} {y} {z}",       lambda: _vec3()),
+        "set velocity to {x} {y} {z}",
+        "move at {n} units per second forward",
+        "fling it upward at {n} speed",
+        "stop it",
+        "set speed to {n} on x",
+        "make it drift right at {n}",
+        "zero out velocity",
+        "send it flying at {x} {y} {z}",
     ],
     "Material.SetColor": [
-        ("paint it red",                         lambda: {"color": "#FF0000"}),
-        ("change color to {hex}",                lambda: {"color": _random_hex()}),
-        ("make it blue",                         lambda: {"color": "#0000FF"}),
-        ("set material color to {hex}",          lambda: {"color": _random_hex()}),
-        ("recolor to green",                     lambda: {"color": "#00CC00"}),
-        ("make it look golden",                  lambda: {"color": "#FFD700"}),
-        ("give it a dark appearance",            lambda: {"color": "#222222"}),
-        ("set emission color to {hex}",          lambda: {"color": _random_hex(), "property": "_EmissionColor"}),
+        "paint it red",
+        "change color to {hex}",
+        "make it blue",
+        "set material color to {hex}",
+        "recolor to green",
+        "make it look golden",
+        "give it a dark appearance",
+        "set emission color to {hex}",
     ],
     "Material.SetAlpha": [
-        ("make it transparent",                  lambda: {"alpha": round(random.uniform(0.0, 0.3), 2)}),
-        ("set opacity to {n:.0%}",              lambda: {"alpha": round(random.uniform(0.1, 1.0), 2)}),
-        ("make it semi-transparent",             lambda: {"alpha": round(random.uniform(0.3, 0.7), 2)}),
-        ("fade it out",                          lambda: {"alpha": round(random.uniform(0.0, 0.2), 2)}),
-        ("make it fully opaque",                 lambda: {"alpha": 1.0}),
-        ("set alpha to {n:.2f}",                lambda: {"alpha": round(random.uniform(0.0, 1.0), 2)}),
-        ("ghost effect",                         lambda: {"alpha": round(random.uniform(0.1, 0.35), 2)}),
-        ("reduce visibility to {n:.0%}",        lambda: {"alpha": round(random.uniform(0.1, 0.6), 2)}),
+        "make it transparent",
+        "set opacity to {n}",
+        "make it semi-transparent",
+        "fade it out",
+        "make it fully opaque",
+        "set alpha to {n}",
+        "ghost effect",
+        "reduce visibility to {n}",
     ],
     "Animation.Play": [
-        ("play the idle animation",              lambda: {"clip": "Idle"}),
-        ("play run animation",                   lambda: {"clip": "Run"}),
-        ("trigger the attack clip",              lambda: {"clip": "Attack"}),
-        ("start the death animation",            lambda: {"clip": "Death"}),
-        ("play {clip} clip",                     lambda: {"clip": random.choice(["Jump","Walk","Dance","Hit","Spawn"])}),
-        ("animate it opening",                   lambda: {"clip": "Open"}),
-        ("trigger victory pose",                 lambda: {"clip": "Victory"}),
-        ("play the explode animation",           lambda: {"clip": "Explode"}),
+        "play the idle animation",
+        "play run animation",
+        "trigger the attack clip",
+        "start the death animation",
+        "play {clip} clip",
+        "animate it opening",
+        "trigger victory pose",
+        "play the explode animation",
     ],
     "Camera.SetFOV": [
-        ("set field of view to {n}",             lambda: {"fov": random.randint(30, 110)}),
-        ("zoom in",                              lambda: {"fov": random.randint(20, 45)}),
-        ("zoom out",                             lambda: {"fov": random.randint(80, 110)}),
-        ("widen the camera view",                lambda: {"fov": random.randint(75, 110)}),
-        ("narrow fov to {n} degrees",            lambda: {"fov": random.randint(20, 50)}),
-        ("set fov {n}",                          lambda: {"fov": random.randint(30, 110)}),
-        ("fish-eye effect",                      lambda: {"fov": random.randint(100, 120)}),
-        ("telephoto look",                       lambda: {"fov": random.randint(15, 30)}),
+        "set field of view to {n}",
+        "zoom in",
+        "zoom out",
+        "widen the camera view",
+        "narrow fov to {n} degrees",
+        "set fov {n}",
+        "fish-eye effect",
+        "telephoto look",
     ],
     "Camera.SetBackground": [
-        ("set sky to black",                     lambda: {"color": "#000000"}),
-        ("background color to {hex}",            lambda: {"color": _random_hex()}),
-        ("make the background blue",             lambda: {"color": "#87CEEB"}),
-        ("dark background",                      lambda: {"color": "#111111"}),
-        ("set clear color to {hex}",             lambda: {"color": _random_hex()}),
-        ("white background",                     lambda: {"color": "#FFFFFF"}),
-        ("sunset background color",              lambda: {"color": "#FF6030"}),
-        ("midnight sky",                         lambda: {"color": "#0A0A1A"}),
+        "set sky to black",
+        "background color to {hex}",
+        "make the background blue",
+        "dark background",
+        "set clear color to {hex}",
+        "white background",
+        "sunset background color",
+        "midnight sky",
     ],
 }
 
@@ -264,16 +263,13 @@ def apply_synonym_swap(text: str) -> str:
             words[i] = random.choice(SYNONYM_SWAPS[w])
     return " ".join(words)
 
-def expand_template(template: str, args_fn) -> tuple[str, dict]:
-    """Resolve template placeholders and generate args."""
-    args = args_fn()
-
-    # Fill numeric placeholders
-    n   = round(random.uniform(1, 15), 1)
-    x   = round(random.uniform(-10, 10), 2)
-    y   = round(random.uniform(0, 10), 2)
-    z   = round(random.uniform(-10, 10), 2)
-    m   = round(random.uniform(1, 4), 1)
+def expand_template(template: str, action: str) -> tuple[str, dict]:
+    # Generate all random values once
+    n    = round(random.uniform(1, 15), 1)
+    x    = round(random.uniform(-10, 10), 2)
+    y    = round(random.uniform(0, 10), 2)
+    z    = round(random.uniform(-10, 10), 2)
+    m    = round(random.uniform(1, 4), 1)
     hex_ = _random_hex()
     adv  = random.choice(["slightly", "gently", "a bit", "sharply"])
     axis = random.choice(["x", "y", "z"])
@@ -281,44 +277,101 @@ def expand_template(template: str, args_fn) -> tuple[str, dict]:
     side = random.choice(["right", "left"])
     clip = random.choice(["Idle", "Run", "Attack", "Jump", "Dance", "Death", "Open"])
 
-    instruction = template.format(
-        n=n, x=x, y=y, z=z, m=m,
-        hex=hex_, adv=adv, axis=axis,
-        dir=dir_, side=side, clip=clip
-    )
+    # Shared context — single source of truth for both instruction and args
+    ctx = dict(n=n, x=x, y=y, z=z, m=m, hex=hex_,
+               adv=adv, axis=axis, dir=dir_, side=side, clip=clip)
 
+    instruction = template.format(**ctx)
     instruction = apply_synonym_swap(instruction)
+
+    # Args built from the same ctx values
+    args = build_args(action, ctx)
+
     return instruction, args
+
+
+def build_args(action: str, ctx: dict) -> dict:
+    dir_map = {
+        "right":   ( ctx["n"],  0,         0        ),
+        "left":    (-ctx["n"],  0,         0        ),
+        "up":      ( 0,         ctx["n"],  0        ),
+        "down":    ( 0,        -ctx["n"],  0        ),
+        "forward": ( 0,         0,         ctx["n"] ),
+        "back":    ( 0,         0,        -ctx["n"] ),
+    }
+    axis_map = {
+        "x": (ctx["n"], 0, 0),
+        "y": (0, ctx["n"], 0),
+        "z": (0, 0, ctx["n"]),
+    }
+
+    if action == "Transform.Translate":
+        dx, dy, dz = dir_map.get(ctx["dir"], (ctx["x"], ctx["y"], ctx["z"]))
+        return {"x": dx, "y": dy, "z": dz}
+
+    if action == "Transform.Rotate":
+        rx, ry, rz = axis_map.get(ctx["axis"], (ctx["x"], ctx["y"], ctx["z"]))
+        return {"x": rx, "y": ry, "z": rz}
+
+    if action == "Transform.Scale":
+        return {"scale": ctx["n"]}
+
+    if action == "Transform.SetPosition":
+        return {"x": ctx["x"], "y": ctx["y"], "z": ctx["z"]}
+
+    if action == "GameObject.SetActive":
+        return {"active": random.choice([True, False])}
+
+    if action == "GameObject.Destroy":
+        return {"delay": ctx["n"]}
+
+    if action in ("Light.SetIntensity",):
+        return {"intensity": ctx["n"]}
+
+    if action in ("Light.SetColor", "Material.SetColor", "Camera.SetBackground"):
+        return {"color": ctx["hex"]}
+
+    if action == "Rigidbody.AddForce":
+        dx, dy, dz = dir_map.get(ctx["dir"], (ctx["x"], ctx["y"], ctx["z"]))
+        return {"x": dx * 40, "y": dy * 40, "z": dz * 40, "mode": "Impulse"}
+
+    if action == "Rigidbody.SetVelocity":
+        return {"x": ctx["x"], "y": ctx["y"], "z": ctx["z"]}
+
+    if action == "Material.SetAlpha":
+        return {"alpha": round(ctx["n"] / 15, 2)}  # normalize n to 0–1
+
+    if action == "Animation.Play":
+        return {"clip": ctx["clip"]}
+
+    if action == "Camera.SetFOV":
+        return {"fov": int(ctx["n"] * 4 + 30)}  # map 1–15 → 34–90
+
+    return {}
 
 # ─── Build Dataset ────────────────────────────────────────────────────────────
 
 def build_dataset(examples_per_action: int = 80) -> list[dict]:
     dataset = []
-
-    for function, templates in SEED_TEMPLATES.items():
+    for action, templates in SEED_TEMPLATES.items():
         per_template = max(1, examples_per_action // len(templates))
-
-        for template, args_fn in templates:
+        for template in templates:
             for _ in range(per_template):
                 try:
-                    instruction, args = expand_template(template, args_fn)
+                    instruction, args = expand_template(template, action)
                     dataset.append({
                         "instruction": instruction,
-                        "output": {
-                            "function": function,
-                            "args": args
-                        }
+                        "output": {"function": action, "args": args}
                     })
                 except Exception:
-                    pass  # skip bad expansions
-
+                    pass
     random.shuffle(dataset)
-    print(f"✓ Generated {len(dataset)} examples across {len(SEED_TEMPLATES)} actions")
+    print(f"Generated {len(dataset)} examples across {len(SEED_TEMPLATES)} actions")
     return dataset
 
 def save_dataset(dataset: list[dict], path: str = DATASET_PATH):
     Path(path).write_text(json.dumps(dataset, indent=2))
-    print(f"✓ Saved to {path}")
+    print(f"Saved to {path}")
 
 # ─── Format for Training ──────────────────────────────────────────────────────
 # Notice: no target — FAISS handles that at runtime
@@ -403,7 +456,7 @@ def train(dataset_path: str = DATASET_PATH):
     trainer.train()
     model.save_pretrained(OUTPUT_DIR)
     tokenizer.save_pretrained(OUTPUT_DIR)
-    print(f"✓ Model saved to {OUTPUT_DIR}")
+    print(f"Model saved to {OUTPUT_DIR}")
 
 # ─── FAISS Scene Index ────────────────────────────────────────────────────────
 
@@ -431,7 +484,7 @@ class SceneIndex:
         dim = embeddings.shape[1]
         self.index = faiss.IndexFlatIP(dim)  # inner product = cosine on normalized vecs
         self.index.add(embeddings)
-        print(f"✓ FAISS index built: {len(scene_objects)} objects")
+        print(f"FAISS index built: {len(scene_objects)} objects")
 
     def find(self, query: str, top_k: int = 1, threshold: float = 0.3) -> str | None:
         if self.index is None or not self.object_names:
@@ -475,7 +528,7 @@ class UnityNLPPipeline:
         self.model.eval()
 
         self.scene_index = SceneIndex()
-        print("✓ Pipeline ready")
+        print("Pipeline ready")
 
     def update_scene(self, scene_objects: list[str]):
         """Call this whenever Unity sends a new scene snapshot."""
