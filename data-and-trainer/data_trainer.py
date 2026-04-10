@@ -10,9 +10,10 @@ from transformers import (
     AutoModelForCausalLM,
     TrainingArguments,
     BitsAndBytesConfig,
+    AutoConfig
 )
 from peft import LoraConfig, get_peft_model, TaskType
-from trl import SFTTrainer
+from trl import SFTTrainer #, SFTConfig
 from sentence_transformers import SentenceTransformer
 
 # ─── Constants ────────────────────────────────────────────────────────────────
@@ -196,6 +197,9 @@ SEED_TEMPLATES = {
         "sunset background color",
         "midnight sky",
     ],
+    "FlyToTarget": [
+        ("show it")
+    ]
 }
 
 # ─── Argument Helpers ─────────────────────────────────────────────────────────
@@ -246,7 +250,8 @@ SYNONYM_SWAPS = {
     "rotate":    ["spin", "turn", "tilt", "pivot", "yaw", "orbit"],
     "scale":     ["resize", "size", "stretch", "grow", "enlarge"],
     "hide":      ["disable", "deactivate", "turn off", "make invisible"],
-    "show":      ["enable", "activate", "turn on", "make visible"],
+    "activate":  ["enable", "turn on", "make visible"],
+    "show":      ["focus", "get closer to", "close view"],
     "destroy":   ["delete", "remove", "despawn", "kill"],
     "set":       ["assign", "change", "update", "configure"],
     "make":      ["turn", "render", "set"],
@@ -407,8 +412,8 @@ def train(dataset_path: str = DATASET_PATH):
     model = AutoModelForCausalLM.from_pretrained(
         MODEL_ID,
         quantization_config=bnb_config,
-        device_map="auto",
-        trust_remote_code=True,
+        torch_dtype = "auto",
+        trust_remote_code = False
     )
     model.config.use_cache = False
 
@@ -440,6 +445,8 @@ def train(dataset_path: str = DATASET_PATH):
         save_total_limit=2,
         load_best_model_at_end=True,
         report_to="none",
+        # dataset_text_field="text",
+        # max_seq_length=MAX_SEQ_LEN
     )
 
     trainer = SFTTrainer(
@@ -449,8 +456,8 @@ def train(dataset_path: str = DATASET_PATH):
         eval_dataset=eval_ds,
         tokenizer=tokenizer,
         dataset_text_field="text",
-        max_seq_length=MAX_SEQ_LEN,
-        packing=True,              # safe now — short uniform examples
+        packing=True,
+        max_seq_length=MAX_SEQ_LEN
     )
 
     trainer.train()
@@ -572,36 +579,39 @@ class UnityNLPPipeline:
 
 if __name__ == "__main__":
     # Step 1 — generate dataset
-    dataset = build_dataset(examples_per_action=3)
-    save_dataset(dataset)
-
+    # dataset = build_dataset(examples_per_action=80)
+    # save_dataset(dataset)
+    file = "unity_actions_dataset.json"
+    with open(file, "r") as f:
+        dataset = json.load(f)
+    
     # Step 2 — train
-    # train()
+    train()
 
     # # Step 3 — test inference
-    # pipeline = UnityNLPPipeline()
+    pipeline = UnityNLPPipeline()
 
     # Simulate a Unity scene snapshot arriving
-    # pipeline.update_scene([
-    #     "WoodDoor_01",
-    #     "SpotLight_Blue",
-    #     "HeavyBoulder_03",
-    #     "PlayerCharacter",
-    #     "CeilingLamp_02",
-    #     "GlassWall_Left",
-    # ])
+    pipeline.update_scene([
+        "WoodDoor_01",
+        "SpotLight_Blue",
+        "HeavyBoulder_03",
+        "PlayerCharacter",
+        "CeilingLamp_02",
+        "GlassWall_Left",
+    ])
 
-    # tests = [
-    #     "launch the boulder upward with a strong impulse",
-    #     "dim the ceiling lamp",
-    #     "make the glass wall transparent",
-    #     "play the idle animation on the player",
-    #     "rotate the door 90 degrees on y",
-    #     "set the spotlight to red",
-    # ]
+    tests = [
+        "launch the boulder upward with a strong impulse",
+        "dim the ceiling lamp",
+        "make the glass wall transparent",
+        "play the idle animation on the player",
+        "rotate the door 90 degrees on y",
+        "set the spotlight to red",
+    ]
 
-    # print("\n─── Inference Tests ───")
-    # for instruction in tests:
-    #     result = pipeline.predict(instruction)
-    #     print(f"\n> {instruction}")
-    #     print(f"  {json.dumps(result, indent=2)}")
+    print("\n─── Inference Tests ───")
+    for instruction in tests:
+        result = pipeline.predict(instruction)
+        print(f"\n> {instruction}")
+        print(f"  {json.dumps(result, indent=2)}")
