@@ -1,4 +1,7 @@
+import re
+from dataclasses import dataclass
 import json
+from itertools import combinations
 import random
 import torch
 import faiss
@@ -19,7 +22,7 @@ from sentence_transformers import SentenceTransformer
 # ─── Constants ────────────────────────────────────────────────────────────────
 
 MODEL_ID     = "microsoft/Phi-3-mini-4k-instruct"
-DATASET_PATH = "unity_actions_dataset.json"
+DATASET_PATH = "unity_actions_dataset_combo.json"
 OUTPUT_DIR   = "./unity-action-model"
 MAX_SEQ_LEN  = 256  # shorter now — no scene context needed
 EMBED_MODEL  = "all-MiniLM-L6-v2"
@@ -366,10 +369,35 @@ def build_dataset(examples_per_action: int = 80) -> list[dict]:
                     instruction, args = expand_template(template, action)
                     dataset.append({
                         "instruction": instruction,
-                        "output": {"function": action, "args": args}
+                        "output": [{"function": action, "args": args}]
                     })
                 except Exception:
                     pass
+    random.shuffle(dataset)
+    print(len(dataset))
+    new_dataset = []
+    for r in range(2, 5):  # combine 2 to 4 steps
+        cnt = 0
+        for combo in combinations(dataset, r):
+            join_words = ["and", "then", "."]
+            # Merge instructions
+            merged_instruction = f" {random.choice(join_words)} ".join([item["instruction"] for item in combo])
+            
+            # Merge outputs (sequence of functions)
+            merged_output = []
+            for item in combo:
+                merged_output.extend(item["output"])  # append function steps
+            
+            # Append new sample
+            new_dataset.append({
+                "instruction": merged_instruction,
+                "output": merged_output
+            })
+            cnt += 1
+            if cnt >= 3000:
+                break
+    print(len(new_dataset))
+    dataset.extend(new_dataset)
     random.shuffle(dataset)
     print(f"Generated {len(dataset)} examples across {len(SEED_TEMPLATES)} actions")
     return dataset
@@ -493,7 +521,11 @@ class SceneIndex:
         self.index.add(embeddings)
         print(f"FAISS index built: {len(scene_objects)} objects")
 
-    def find(self, query: str, top_k: int = 1, threshold: float = 0.3) -> str | None:
+    def find(self, query: str, threshold: float = 0.3) -> str | None:
+        name, _ = self.find_with_score(query)
+        return name
+    
+    def find_with_score(self, query: str, top_k: int = 1, threshold: float = 0.3) -> str | None:
         if self.index is None or not self.object_names:
             raise RuntimeError("Scene index is empty. Call rebuild() first.")
 
@@ -501,23 +533,120 @@ class SceneIndex:
         vec = vec / np.linalg.norm(vec, axis=1, keepdims=True)
 
         scores, indices = self.index.search(vec, top_k)
-        best_score = scores[0][0]
+        best_score = float(scores[0][0])
         best_idx   = indices[0][0]
-
+        print("indices", indices)
+        print("scores", scores)
+        print("objects", self.object_names)
         if best_score < threshold:
-            return None  # no confident match
+            return None, best_score  # no confident match
 
-        return self.object_names[best_idx]
+        return self.object_names[best_idx], best_score
+
+ACTION_PRIORITY = {
+    "GameObject.SetActive":    1,  # visibility first
+    "GameObject.Destroy":      1,
+    "Transform.SetPosition":   2,  # position before physics
+    "Transform.Translate":     3,
+    "Transform.Rotate":        3,
+    "Transform.Scale":         3,
+    "Rigidbody.SetVelocity":   4,  # physics after positioning
+    "Rigidbody.AddForce":      5,
+    "Light.SetColor":          6,  # visuals after physics
+    "Light.SetIntensity":      6,
+    "Material.SetColor":       7,
+    "Material.SetAlpha":       7,
+    "Camera.SetFOV":           8,
+    "Camera.SetBackground":    8,
+    "Animation.Play":          9,  # animations last
+}
+
+# ─── Splitting patterns ───────────────────────────────────────────────────────
+
+# Conjunctions and sequence words that separate sub-instructions
+SPLIT_PATTERNS = [
+    r'\s+and\s+then\s+',
+    r'\s+then\s+',
+    r'\s+after\s+that\s+',
+    r'\s+afterwards\s+',
+    r'\s+followed\s+by\s+',
+    r'\s+and\s+also\s+',
+    r'\s+also\s+',
+    r',\s+and\s+',
+    r'\s+and\s+',
+    r';\s*',
+    r',\s+',
+]
+
+COMPILED_SPLIT = re.compile(
+    '|'.join(SPLIT_PATTERNS),
+    flags=re.IGNORECASE
+)
+
+# Ambiguous "and" that should NOT split — same object, compound action
+# e.g. "rotate and scale the cube" — these belong together
+COMPOUND_ACTION_PAIRS = [
+    ("rotate", "scale"),
+    ("hide",   "disable"),
+    ("show",   "enable"),
+    ("move",   "rotate"),
+    ("set",    "change"),
+]
+
+def _is_compound(left: str, right: str) -> bool:
+    """Return True if two clauses likely refer to one compound action."""
+    l, r = left.lower(), right.lower()
+    for a, b in COMPOUND_ACTION_PAIRS:
+        if (a in l and b in r) or (b in l and a in r):
+            return True
+    return False
+
+# ─── Splitter ─────────────────────────────────────────────────────────────────
+
+def split_instruction(instruction: str) -> list[str]:
+    """
+    Split a compound instruction into ordered sub-instructions.
+    Merges back clauses that look like compound actions on the same object.
+    """
+    raw_parts = COMPILED_SPLIT.split(instruction.strip())
+    parts = [p.strip() for p in raw_parts if p and p.strip()]
+
+    if len(parts) <= 1:
+        return parts
+
+    # Merge compound pairs back together
+    merged = [parts[0]]
+    for i in range(1, len(parts)):
+        if _is_compound(merged[-1], parts[i]):
+            merged[-1] = merged[-1] + " and " + parts[i]
+        else:
+            merged.append(parts[i])
+
+    return merged
+
+# ─── Result dataclass ─────────────────────────────────────────────────────────
+
+@dataclass
+class CommandResult:
+    function:    str
+    target:      str
+    args:        dict
+    instruction: str          # original sub-instruction that produced this
+    priority:    int          # for ordering
+    confidence:  float        # FAISS similarity score
+    def to_dict(self) -> dict:
+        return {
+            "function":    self.function,
+            "target":      self.target,
+            "args":        self.args,
+            "instruction": self.instruction,
+            "priority":    self.priority,
+            "confidence":  self.confidence,
+        }
+
 
 # ─── Inference Pipeline ───────────────────────────────────────────────────────
-
 class UnityNLPPipeline:
-    """
-    Full pipeline:
-      natural language → (model) → action + args
-                       → (FAISS)  → target object name
-                       → merged CommandResult ready for ExecuteCommand
-    """
 
     def __init__(self, model_dir: str = OUTPUT_DIR):
         from peft import PeftModel
@@ -533,17 +662,20 @@ class UnityNLPPipeline:
         )
         self.model = PeftModel.from_pretrained(base, model_dir)
         self.model.eval()
-
         self.scene_index = SceneIndex()
-        print("Pipeline ready")
+        print("✓ Pipeline ready")
 
     def update_scene(self, scene_objects: list[str]):
-        """Call this whenever Unity sends a new scene snapshot."""
         self.scene_index.rebuild(scene_objects)
 
-    def predict(self, instruction: str) -> dict:
-        # 1. Model predicts function + args (no target)
-        prompt = f"### Instruction:\n{instruction}\n\n### Response:\n"
+    # ── Single sub-instruction ─────────────────────────────────────────────
+
+    def _predict_one(self, instruction: str) -> dict | None:
+        """Predict function+args for a single atomic instruction."""
+        prompt = (
+            f"### Instruction:\n{instruction}\n\n"
+            f"### Response:\n"
+        )
         inputs = self.tokenizer(prompt, return_tensors="pt").to(self.model.device)
 
         with torch.no_grad():
@@ -559,21 +691,63 @@ class UnityNLPPipeline:
         response = decoded.split("### Response:\n")[-1].strip()
 
         try:
-            action = json.loads(response)
+            ret = json.loads(response)
+            print(ret)
+            return ret
         except json.JSONDecodeError:
-            return {"error": "parse_failed", "raw": response}
+            print(f"  ✗ Parse failed for: '{instruction}'\n    Raw: {response}")
+            return None
 
-        # 2. FAISS resolves target from instruction
-        target = self.scene_index.find(instruction)
-        if target is None:
-            return {"error": "no_target_found", "instruction": instruction}
+    # ── Main entry point ───────────────────────────────────────────────────
 
-        # 3. Merge into final command
-        return {
-            "function": action["function"],
-            "target":   target,
-            "args":     action.get("args", {})
-        }
+    def predict(self, instruction: str) -> list[CommandResult]:
+        """
+        Split compound instruction → predict each sub-instruction →
+        resolve targets via FAISS → sort by priority.
+
+        Returns a list of CommandResult, ordered for Unity execution.
+        """
+        sub_instructions = split_instruction(instruction)
+        print(f"\n→ Split into {len(sub_instructions)} sub-instruction(s):")
+        for i, s in enumerate(sub_instructions):
+            print(f"  {i+1}. '{s}'")
+
+        results = []
+
+        for sub in sub_instructions:
+            # 1. Model predicts function + args
+            action = self._predict_one(sub)
+            if action is None or len(action) == 0:
+                print(f"  ⚠ Skipping (parse failed): '{sub}'")
+                continue
+
+            fn = action[0].get("function")
+            if not fn:
+                print(f"  ⚠ Skipping (no function): '{sub}'")
+                continue
+
+            # 2. FAISS resolves target
+            target, confidence = self.scene_index.find_with_score(sub)
+            if target is None:
+                print(f"  ⚠ Skipping (no target found): '{sub}'")
+                continue
+
+            # 3. Build result with priority
+            priority = ACTION_PRIORITY.get(fn, 99)
+            results.append(CommandResult(
+                function=fn,
+                target=target,
+                args=action[0].get("args", {}),
+                instruction=sub,
+                priority=priority,
+                confidence=confidence,
+            ))
+            print(f"  ✓ '{sub}' → {fn} on '{target}' (priority={priority}, conf={confidence:.2f})")
+
+        # 4. Sort by priority (stable sort preserves original order within same priority)
+        results.sort(key=lambda r: r.priority)
+
+        return results
 
 # ─── Entry Point ─────────────────────────────────────────────────────────────
 
@@ -581,14 +755,14 @@ if __name__ == "__main__":
     # Step 1 — generate dataset
     # dataset = build_dataset(examples_per_action=80)
     # save_dataset(dataset)
-    file = "unity_actions_dataset.json"
-    with open(file, "r") as f:
-        dataset = json.load(f)
-    
-    # Step 2 — train
-    train()
 
-    # # Step 3 — test inference
+    # with open(DATASET_PATH, "r") as f:
+    #     dataset = json.load(f)
+    
+    # # Step 2 — train
+    # train()
+
+    # Step 3 — test inference
     pipeline = UnityNLPPipeline()
 
     # Simulate a Unity scene snapshot arriving
@@ -602,8 +776,8 @@ if __name__ == "__main__":
     ])
 
     tests = [
-        "launch the boulder upward with a strong impulse",
-        "dim the ceiling lamp",
+        # "launch the boulder upward with a strong impulse",
+        "dim the ceiling lamp and then make the glass wall transparent",
         "make the glass wall transparent",
         "play the idle animation on the player",
         "rotate the door 90 degrees on y",
@@ -614,4 +788,5 @@ if __name__ == "__main__":
     for instruction in tests:
         result = pipeline.predict(instruction)
         print(f"\n> {instruction}")
-        print(f"  {json.dumps(result, indent=2)}")
+        # print("result", result)
+        print(f"  {json.dumps([r.to_dict() for r in result], indent=2)}")
