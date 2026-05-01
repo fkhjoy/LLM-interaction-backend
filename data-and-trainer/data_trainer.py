@@ -22,7 +22,7 @@ from sentence_transformers import SentenceTransformer
 # ─── Constants ────────────────────────────────────────────────────────────────
 
 MODEL_ID     = "microsoft/Phi-3-mini-4k-instruct"
-DATASET_PATH = "unity_actions_dataset_combo.json"
+DATASET_PATH = "unity_actions_dataset.json"
 OUTPUT_DIR   = "./unity-action-model"
 MAX_SEQ_LEN  = 256  # shorter now — no scene context needed
 EMBED_MODEL  = "all-MiniLM-L6-v2"
@@ -70,7 +70,7 @@ SEED_TEMPLATES = {
         "roll {n} degrees",
         "orient it {n} degrees on the y axis",
     ],
-    "Transform.Scale": [
+    "Transform.localScale": [
         "scale it up by {n}x",
         "make it {n} times bigger",
         "shrink it to {n}x",
@@ -80,19 +80,18 @@ SEED_TEMPLATES = {
         "stretch x by {n} and y by {m}",
         "squash it on the y axis",
     ],
-    "Transform.SetPosition": [
-        "place it at ({x}, {y}, {z})",
-        "teleport to position {x} {y} {z}",
-        "set world position to {x} {y} {z}",
-        "move to coordinates {x} {y} {z}",
-        "snap to origin",
-        "put it at the center",
-        "position at x={x} y={y} z={z}",
-        "reposition to {x} {y} {z}",
-    ],
+    # "Transform.SetPosition": [
+    #     "place it at ({x}, {y}, {z})",
+    #     "teleport to position {x} {y} {z}",
+    #     "set world position to {x} {y} {z}",
+    #     "move to coordinates {x} {y} {z}",
+    #     "snap to origin",
+    #     "put it at the center",
+    #     "position at x={x} y={y} z={z}",
+    #     "reposition to {x} {y} {z}",
+    # ],
     "GameObject.SetActive": [
         "hide it",
-        "show it",
         "make it invisible",
         "toggle it off",
         "enable the object",
@@ -130,26 +129,26 @@ SEED_TEMPLATES = {
         "set light color to white",
         "give it a purple tint",
     ],
-    "Rigidbody.AddForce": [
-        "launch it upward",
-        "push it forward",
-        "apply {n} force upward",
-        "blast it to the right",
-        "apply impulse {x} {y} {z}",
-        "continuously push {dir}",
-        "velocity change by {n} upward",
-        "knock it sideways",
-    ],
-    "Rigidbody.SetVelocity": [
-        "set velocity to {x} {y} {z}",
-        "move at {n} units per second forward",
-        "fling it upward at {n} speed",
-        "stop it",
-        "set speed to {n} on x",
-        "make it drift right at {n}",
-        "zero out velocity",
-        "send it flying at {x} {y} {z}",
-    ],
+    # "Rigidbody.AddForce": [
+    #     "launch it upward",
+    #     "push it forward",
+    #     "apply {n} force upward",
+    #     "blast it to the right",
+    #     "apply impulse {x} {y} {z}",
+    #     "continuously push {dir}",
+    #     "velocity change by {n} upward",
+    #     "knock it sideways",
+    # ],
+    # "Rigidbody.SetVelocity": [
+    #     "set velocity to {x} {y} {z}",
+    #     "move at {n} units per second forward",
+    #     "fling it upward at {n} speed",
+    #     "stop it",
+    #     "set speed to {n} on x",
+    #     "make it drift right at {n}",
+    #     "zero out velocity",
+    #     "send it flying at {x} {y} {z}",
+    # ],
     "Material.SetColor": [
         "paint it red",
         "change color to {hex}",
@@ -201,7 +200,11 @@ SEED_TEMPLATES = {
         "midnight sky",
     ],
     "FlyToTarget": [
-        ("show it")
+        "show it"
+    ],
+    "StartOrbit": [
+        "orbit around it",
+        "move in a circle around it",
     ]
 }
 
@@ -250,7 +253,7 @@ def _random_hex():
 
 SYNONYM_SWAPS = {
     "move":      ["shift", "translate", "push", "displace", "nudge"],
-    "rotate":    ["spin", "turn", "tilt", "pivot", "yaw", "orbit"],
+    "rotate":    ["spin", "turn", "tilt", "pivot", "yaw"],
     "scale":     ["resize", "size", "stretch", "grow", "enlarge"],
     "hide":      ["disable", "deactivate", "turn off", "make invisible"],
     "activate":  ["enable", "turn on", "make visible"],
@@ -261,6 +264,7 @@ SYNONYM_SWAPS = {
     "play":      ["trigger", "start", "run", "execute"],
     "brighter":  ["more intense", "stronger", "higher intensity"],
     "dimmer":    ["less intense", "weaker", "lower intensity"],
+    "orbit":     ["circle around", "revolve around", "spin around", "encircle"],
 }
 
 def apply_synonym_swap(text: str) -> str:
@@ -319,10 +323,10 @@ def build_args(action: str, ctx: dict) -> dict:
 
     if action == "Transform.Rotate":
         rx, ry, rz = axis_map.get(ctx["axis"], (ctx["x"], ctx["y"], ctx["z"]))
-        return {"x": rx, "y": ry, "z": rz}
+        return {"xAngle": rx, "yAngle": ry, "zAngle": rz}
 
-    if action == "Transform.Scale":
-        return {"scale": ctx["n"]}
+    if action == "Transform.localScale":
+        return {"x": ctx["n"], "y": ctx["n"], "z": ctx["n"]}
 
     if action == "Transform.SetPosition":
         return {"x": ctx["x"], "y": ctx["y"], "z": ctx["z"]}
@@ -375,30 +379,30 @@ def build_dataset(examples_per_action: int = 80) -> list[dict]:
                     pass
     random.shuffle(dataset)
     print(len(dataset))
-    new_dataset = []
-    for r in range(2, 5):  # combine 2 to 4 steps
-        cnt = 0
-        for combo in combinations(dataset, r):
-            join_words = ["and", "then", "."]
-            # Merge instructions
-            merged_instruction = f" {random.choice(join_words)} ".join([item["instruction"] for item in combo])
+    # new_dataset = []
+    # for r in range(2, 5):  # combine 2 to 4 steps
+    #     cnt = 0
+    #     for combo in combinations(dataset, r):
+    #         join_words = ["and", "then", "."]
+    #         # Merge instructions
+    #         merged_instruction = f" {random.choice(join_words)} ".join([item["instruction"] for item in combo])
             
-            # Merge outputs (sequence of functions)
-            merged_output = []
-            for item in combo:
-                merged_output.extend(item["output"])  # append function steps
+    #         # Merge outputs (sequence of functions)
+    #         merged_output = []
+    #         for item in combo:
+    #             merged_output.extend(item["output"])  # append function steps
             
-            # Append new sample
-            new_dataset.append({
-                "instruction": merged_instruction,
-                "output": merged_output
-            })
-            cnt += 1
-            if cnt >= 3000:
-                break
-    print(len(new_dataset))
-    dataset.extend(new_dataset)
-    random.shuffle(dataset)
+    #         # Append new sample
+    #         new_dataset.append({
+    #             "instruction": merged_instruction,
+    #             "output": merged_output
+    #         })
+    #         cnt += 1
+    #         if cnt >= 3000:
+    #             break
+    # print(len(new_dataset))
+    # dataset.extend(new_dataset)
+    # random.shuffle(dataset)
     print(f"Generated {len(dataset)} examples across {len(SEED_TEMPLATES)} actions")
     return dataset
 
@@ -525,7 +529,7 @@ class SceneIndex:
         name, _ = self.find_with_score(query)
         return name
     
-    def find_with_score(self, query: str, top_k: int = 1, threshold: float = 0.3) -> str | None:
+    def find_with_score(self, query: str, top_k: int = 1, threshold: float = 0.23) -> str | None:
         if self.index is None or not self.object_names:
             raise RuntimeError("Scene index is empty. Call rebuild() first.")
 
@@ -689,10 +693,13 @@ class UnityNLPPipeline:
 
         decoded  = self.tokenizer.decode(output[0], skip_special_tokens=True)
         response = decoded.split("### Response:\n")[-1].strip()
-
+        print("response", response)
+        if response[-1] != ']':
+            response = response.rsplit("},", 1)[0] + "}]"
+        print("response", response)
         try:
             ret = json.loads(response)
-            print(ret)
+            print("Return", ret)
             return ret
         except json.JSONDecodeError:
             print(f"  ✗ Parse failed for: '{instruction}'\n    Raw: {response}")
@@ -736,6 +743,7 @@ class UnityNLPPipeline:
             priority = ACTION_PRIORITY.get(fn, 99)
             results.append(CommandResult(
                 function=fn,
+                # function="FlyToTarget",
                 target=target,
                 args=action[0].get("args", {}),
                 instruction=sub,
@@ -753,14 +761,14 @@ class UnityNLPPipeline:
 
 if __name__ == "__main__":
     # Step 1 — generate dataset
-    # dataset = build_dataset(examples_per_action=80)
-    # save_dataset(dataset)
+    dataset = build_dataset(examples_per_action=500)
+    save_dataset(dataset)
 
-    # with open(DATASET_PATH, "r") as f:
-    #     dataset = json.load(f)
+    with open(DATASET_PATH, "r") as f:
+        dataset = json.load(f)
     
     # # Step 2 — train
-    # train()
+    train()
 
     # Step 3 — test inference
     pipeline = UnityNLPPipeline()

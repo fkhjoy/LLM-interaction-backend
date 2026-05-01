@@ -208,3 +208,5 @@ __marimo__/
 
 # files
 *.json
+unity-action-model
+*.zip
