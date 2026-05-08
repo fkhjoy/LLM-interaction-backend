@@ -541,7 +541,7 @@ class SceneIndex:
         best_idx   = indices[0][0]
         print("indices", indices)
         print("scores", scores)
-        print("objects", self.object_names)
+        print("object", self.object_names[best_idx] if best_idx < len(self.object_names) else "N/A")
         if best_score < threshold:
             return None, best_score  # no confident match
 
@@ -693,7 +693,6 @@ class UnityNLPPipeline:
 
         decoded  = self.tokenizer.decode(output[0], skip_special_tokens=True)
         response = decoded.split("### Response:\n")[-1].strip()
-        print("response", response)
         if response[-1] != ']':
             response = response.rsplit("},", 1)[0] + "}]"
         print("response", response)
@@ -720,7 +719,7 @@ class UnityNLPPipeline:
             print(f"  {i+1}. '{s}'")
 
         results = []
-
+        target = None
         for sub in sub_instructions:
             # 1. Model predicts function + args
             action = self._predict_one(sub)
@@ -734,11 +733,11 @@ class UnityNLPPipeline:
                 continue
 
             # 2. FAISS resolves target
-            target, confidence = self.scene_index.find_with_score(sub)
-            if target is None:
+            target_, confidence = self.scene_index.find_with_score(sub)
+            if target_ is None and target is None:
                 print(f"  ⚠ Skipping (no target found): '{sub}'")
                 continue
-
+            target = target_ if target_ is not None else target  # use last found target for next steps if not specified
             # 3. Build result with priority
             priority = ACTION_PRIORITY.get(fn, 99)
             results.append(CommandResult(
