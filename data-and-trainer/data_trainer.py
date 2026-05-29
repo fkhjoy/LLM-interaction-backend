@@ -90,35 +90,35 @@ SEED_TEMPLATES = {
     #     "position at x={x} y={y} z={z}",
     #     "reposition to {x} {y} {z}",
     # ],
-    "GameObject.SetActive": [
-        "hide it",
-        "make it invisible",
-        "toggle it off",
-        "enable the object",
-        "disable it",
-        "turn it on",
-        "deactivate it",
-    ],
-    "GameObject.Destroy": [
-        "destroy it",
-        "delete it",
-        "remove it from the scene",
-        "destroy it after {n} seconds",
-        "delete in {n} seconds",
-        "blow it up",
-        "get rid of it",
-        "despawn it",
-    ],
-    "Light.SetIntensity": [
-        "set intensity to {n}",
-        "make it brighter",
-        "dim the light",
-        "set light strength to {n}",
-        "turn it up to {n}",
-        "reduce brightness to {n}",
-        "max out the light",
-        "make it barely visible",
-    ],
+    # "GameObject.SetActive": [
+    #     "hide it",
+    #     "make it invisible",
+    #     "toggle it off",
+    #     "enable the object",
+    #     "disable it",
+    #     "turn it on",
+    #     "deactivate it",
+    # ],
+    # "GameObject.Destroy": [
+    #     "destroy it",
+    #     "delete it",
+    #     "remove it from the scene",
+    #     "destroy it after {n} seconds",
+    #     "delete in {n} seconds",
+    #     "blow it up",
+    #     "get rid of it",
+    #     "despawn it",
+    # ],
+    # "Light.SetIntensity": [
+    #     "set intensity to {n}",
+    #     "make it brighter",
+    #     "dim the light",
+    #     "set light strength to {n}",
+    #     "turn it up to {n}",
+    #     "reduce brightness to {n}",
+    #     "max out the light",
+    #     "make it barely visible",
+    # ],
     "Light.SetColor": [
         "make the light red",
         "set light to blue",
@@ -169,16 +169,16 @@ SEED_TEMPLATES = {
         "ghost effect",
         "reduce visibility to {n}",
     ],
-    "Animation.Play": [
-        "play the idle animation",
-        "play run animation",
-        "trigger the attack clip",
-        "start the death animation",
-        "play {clip} clip",
-        "animate it opening",
-        "trigger victory pose",
-        "play the explode animation",
-    ],
+    # "Animation.Play": [
+    #     "play the idle animation",
+    #     "play run animation",
+    #     "trigger the attack clip",
+    #     "start the death animation",
+    #     "play {clip} clip",
+    #     "animate it opening",
+    #     "trigger victory pose",
+    #     "play the explode animation",
+    # ],
     "Camera.SetFOV": [
         "set field of view to {n}",
         "zoom in",
@@ -199,12 +199,24 @@ SEED_TEMPLATES = {
         "sunset background color",
         "midnight sky",
     ],
+    "Execution.ContinueLatest" : [
+        "continue the latest execution for {n} seconds",
+        "resume the last execution for {n} seconds",
+        "run for {n} seconds",
+    ],
     "FlyToTarget": [
-        "show it"
+        "show it",
+        "focus on it",
+        "get closer to it",
+        "zoom the camera towards it",
+        "fly to it",
+        "approach the target",
     ],
     "StartOrbit": [
         "orbit around it",
         "move in a circle around it",
+        "revolve around the target",
+        "spin around it",
     ]
 }
 
@@ -358,6 +370,8 @@ def build_args(action: str, ctx: dict) -> dict:
 
     if action == "Camera.SetFOV":
         return {"fov": int(ctx["n"] * 4 + 30)}  # map 1–15 → 34–90
+    if action == "Execution.ContinueLatest":
+        return {"delay": ctx["n"]}
 
     return {}
 
@@ -759,15 +773,15 @@ class UnityNLPPipeline:
 # ─── Entry Point ─────────────────────────────────────────────────────────────
 
 if __name__ == "__main__":
-    # Step 1 — generate dataset
-    dataset = build_dataset(examples_per_action=500)
-    save_dataset(dataset)
+    # # Step 1 — generate dataset
+    # dataset = build_dataset(examples_per_action=1000)
+    # save_dataset(dataset)
 
-    with open(DATASET_PATH, "r") as f:
-        dataset = json.load(f)
+    # with open(DATASET_PATH, "r") as f:
+    #     dataset = json.load(f)
     
-    # # Step 2 — train
-    train()
+    # # # Step 2 — train
+    # train()
 
     # Step 3 — test inference
     pipeline = UnityNLPPipeline()
@@ -784,11 +798,12 @@ if __name__ == "__main__":
 
     tests = [
         # "launch the boulder upward with a strong impulse",
-        "dim the ceiling lamp and then make the glass wall transparent",
-        "make the glass wall transparent",
-        "play the idle animation on the player",
-        "rotate the door 90 degrees on y",
-        "set the spotlight to red",
+        # "dim the ceiling lamp and then make the glass wall transparent",
+        # "make the glass wall transparent",
+        # "play the idle animation on the player",
+        # "rotate the door 90 degrees on y",
+        # "set the spotlight to red",
+        "fly to the door and orbit around it for 10 seconds",
     ]
 
     print("\n─── Inference Tests ───")
